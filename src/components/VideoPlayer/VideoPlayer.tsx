@@ -215,11 +215,23 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
   }, [asset, loadVideo]);
 
-  // DISABLE external playback state synchronization to fix restart issue
-  // The video player will be fully autonomous for play/pause
-  // useEffect(() => {
-  //   // Commented out to prevent external state interference
-  // }, [isPlaying, isVideoReady, playerType]);
+  // Minimal external playback state synchronization - very conservative
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !isVideoReady) return;
+
+    // Only respond to external commands if there's a clear state mismatch
+    // and avoid any time-related seeking
+    if (isPlaying && video.paused) {
+      console.log(`${playerType} player: External PLAY command - resuming from ${video.currentTime}s`);
+      video.play().catch(console.error);
+      setInternalIsPlaying(true);
+    } else if (!isPlaying && !video.paused) {
+      console.log(`${playerType} player: External PAUSE command - pausing at ${video.currentTime}s`);
+      video.pause();
+      setInternalIsPlaying(false);
+    }
+  }, [isPlaying, isVideoReady, playerType]);
 
   // DISABLE external time synchronization completely to prevent restart issues
   // Only allow manual seeking via progress bar clicks
