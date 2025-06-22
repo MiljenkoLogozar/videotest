@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Settings, Upload as UploadIcon } from 'lucide-react';
 import FileUpload from '@/components/FileUpload/FileUpload';
-import VideoPlayer from '@/components/VideoPlayer/VideoPlayer';
+import VideoPlayerAJ from '@/components/VideoPlayer/VideoPlayerAJ';
 import { useCurrentProject, useTimeline, useTimelineActions, useProjectActions, useVideoEditorStore } from '@/lib/stores/video-editor-store';
 import { localVideoStorage, generateAssetId } from '@/lib/storage/local-storage';
 import type { VideoSegments } from '@/types';
@@ -16,6 +16,8 @@ export default function VideoEditorPage() {
   const [videoCount, setVideoCount] = useState(0);
   const [selectedVideo, setSelectedVideo] = useState<LocalVideoAsset | null>(null);
   const [actualVideoTime, setActualVideoTime] = useState(0);
+  const [sourcePlayerSeekTime, setSourcePlayerSeekTime] = useState<number | undefined>(undefined);
+  const [programPlayerSeekTime, setProgramPlayerSeekTime] = useState<number | undefined>(undefined);
 
   const currentProject = useCurrentProject();
   const timeline = useTimeline();
@@ -111,16 +113,13 @@ export default function VideoEditorPage() {
     setActualVideoTime(time);
   };
 
-  const handleVideoPlay = () => {
-    play();
-  };
-
-  const handleVideoPause = () => {
-    pause();
-  };
-
-  const handleVideoSeek = (time: number) => {
-    seek(time);
+  const handleVideoPlayStateChange = (isPlaying: boolean) => {
+    // Update timeline state based on video player's autonomous state
+    if (isPlaying) {
+      play();
+    } else {
+      pause();
+    }
   };
 
   const handleSourceProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -140,7 +139,11 @@ export default function VideoEditorPage() {
       videoDuration: selectedVideo.metadata.duration,
       timelineDuration: timeline.duration
     });
-    seek(clampedTime);
+    
+    // Send seek command to video player
+    setSourcePlayerSeekTime(clampedTime);
+    // Reset after a brief moment to allow re-seeking to same position
+    setTimeout(() => setSourcePlayerSeekTime(undefined), 100);
   };
 
   const handleProgramProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -153,7 +156,11 @@ export default function VideoEditorPage() {
     
     // Ensure time is within bounds
     const clampedTime = Math.max(0, Math.min(newTime, timeline.duration));
-    seek(clampedTime);
+    
+    // Send seek command to program player
+    setProgramPlayerSeekTime(clampedTime);
+    // Reset after a brief moment to allow re-seeking to same position
+    setTimeout(() => setProgramPlayerSeekTime(undefined), 100);
   };
 
   const formatTime = (seconds: number): string => {
@@ -321,16 +328,13 @@ export default function VideoEditorPage() {
             <div className="w-1/2 flex flex-col border-r border-gray-700">
               <div className="flex-1 bg-black relative">
                 {/* Video Player */}
-                <VideoPlayer
+                <VideoPlayerAJ
                   asset={selectedVideo}
-                  currentTime={timeline.currentTime}
-                  isPlaying={timeline.isPlaying}
                   onTimeUpdate={handleVideoTimeUpdate}
-                  onPlay={handleVideoPlay}
-                  onPause={handleVideoPause}
-                  onSeek={handleVideoSeek}
+                  onPlayStateChange={handleVideoPlayStateChange}
                   playerType="source"
                   className="w-full h-full"
+                  seekToTime={sourcePlayerSeekTime}
                 />
               </div>
               
@@ -351,7 +355,14 @@ export default function VideoEditorPage() {
                       <SkipBack className="h-4 w-4" />
                     </button>
                     <button
-                      onClick={() => timeline.isPlaying ? pause() : play()}
+                      onClick={() => {
+                        // Let the video player handle its own play/pause state
+                        if (timeline.isPlaying) {
+                          pause();
+                        } else {
+                          play();
+                        }
+                      }}
                       className="p-2 bg-orange-600 hover:bg-orange-700 rounded transition-colors disabled:opacity-50"
                       disabled={!currentProject}
                     >
@@ -442,16 +453,13 @@ export default function VideoEditorPage() {
             <div className="w-1/2 flex flex-col">
               <div className="flex-1 bg-black relative">
                 {/* Program Video Player - Currently shows timeline output */}
-                <VideoPlayer
+                <VideoPlayerAJ
                   asset={null} // TODO: Will show timeline composition in Phase 3
-                  currentTime={timeline.currentTime}
-                  isPlaying={timeline.isPlaying}
                   onTimeUpdate={handleVideoTimeUpdate}
-                  onPlay={handleVideoPlay}
-                  onPause={handleVideoPause}
-                  onSeek={handleVideoSeek}
+                  onPlayStateChange={handleVideoPlayStateChange}
                   playerType="program"
                   className="w-full h-full"
+                  seekToTime={programPlayerSeekTime}
                 />
               </div>
               
@@ -467,7 +475,14 @@ export default function VideoEditorPage() {
                       <SkipBack className="h-4 w-4" />
                     </button>
                     <button
-                      onClick={() => timeline.isPlaying ? pause() : play()}
+                      onClick={() => {
+                        // Let the video player handle its own play/pause state
+                        if (timeline.isPlaying) {
+                          pause();
+                        } else {
+                          play();
+                        }
+                      }}
                       className="p-2 bg-blue-600 hover:bg-blue-700 rounded transition-colors disabled:opacity-50"
                       disabled={!currentProject}
                     >

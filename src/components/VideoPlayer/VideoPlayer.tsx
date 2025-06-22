@@ -6,14 +6,12 @@ import type { LocalVideoAsset } from '@/lib/storage/local-storage';
 
 interface VideoPlayerProps {
   asset: LocalVideoAsset | null;
-  currentTime: number;
-  isPlaying: boolean;
   onTimeUpdate: (time: number) => void;
-  onPlay: () => void;
-  onPause: () => void;
-  onSeek: (time: number) => void;
+  onPlayStateChange: (isPlaying: boolean) => void;
   className?: string;
   playerType: 'source' | 'program';
+  // Optional external seeking control - only for progress bar clicks
+  seekToTime?: number;
 }
 
 // Helper function to create HLS playlist from local segments
@@ -36,25 +34,27 @@ const createHLSPlaylist = (asset: LocalVideoAsset): string => {
 
 export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   asset,
-  currentTime,
-  isPlaying,
   onTimeUpdate,
-  onPlay,
-  onPause,
-  onSeek,
+  onPlayStateChange,
   className = '',
-  playerType
+  playerType,
+  seekToTime
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [volume, setVolume] = useState(1);
-  const [isMuted, setIsMuted] = useState(false);
+  const [volume] = useState(1);
+  const [isMuted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [duration, setDuration] = useState(0);
+  const [, setDuration] = useState(0);
   const [isVideoReady, setIsVideoReady] = useState(false);
   const [currentPlaylistUrl, setCurrentPlaylistUrl] = useState<string | null>(null);
+  
+  // Internal autonomous state - no external control
   const [internalIsPlaying, setInternalIsPlaying] = useState(false);
-  const lastExternalSeekTime = useRef<number>(-1);
+  const [internalCurrentTime, setInternalCurrentTime] = useState(0);
+  const [currentFrame, setCurrentFrame] = useState(0);
+  const animationFrameRef = useRef<number | null>(null);
+  const lastSeekTime = useRef<number>(-1);
 
   // Load video asset into player
   const loadVideo = useCallback(async (videoAsset: LocalVideoAsset) => {
@@ -139,9 +139,17 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         };
 
         const handleTimeUpdate = () => {
-          // Always update time for timeline display, but be conservative
-          if (!video.seeking) {
-            onTimeUpdate(video.currentTime);
+          // Update internal time and notify parent
+          if (!video.seeking && isVideoReady) {
+            const currentTime = video.currentTime;
+            setInternalCurrentTime(currentTime);
+            
+            // Calculate current frame for frame-accurate control
+            const fps = videoAsset.metadata.fps || 30;
+            setCurrentFrame(Math.floor(currentTime * fps));
+            
+            // Notify parent of time change
+            onTimeUpdate(currentTime);
           }
         };
 
@@ -193,7 +201,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       setError(err instanceof Error ? err.message : 'Failed to load video');
       setIsLoading(false);
     }
-  }, [playerType, onTimeUpdate]);
+  }, [playerType, onTimeUpdate, currentPlaylistUrl, isVideoReady]);
 
   // Load video when asset changes
   useEffect(() => {
@@ -213,31 +221,57 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         setCurrentPlaylistUrl(null);
       }
     }
-  }, [asset, loadVideo]);
+  }, [asset, loadVideo, currentPlaylistUrl]);
 
-  // Minimal external playback state synchronization - very conservative
+  // Handle external seeking only (from progress bar clicks)
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !isVideoReady) return;
-
-    // Only respond to external commands if there's a clear state mismatch
-    // and avoid any time-related seeking
-    if (isPlaying && video.paused) {
-      console.log(`${playerType} player: External PLAY command - resuming from ${video.currentTime}s`);
-      video.play().catch(console.error);
-      setInternalIsPlaying(true);
-    } else if (!isPlaying && !video.paused) {
-      console.log(`${playerType} player: External PAUSE command - pausing at ${video.currentTime}s`);
-      video.pause();
-      setInternalIsPlaying(false);
+    if (!video || !isVideoReady || seekToTime === undefined || seekToTime === lastSeekTime.current) {
+      return;
     }
-  }, [isPlaying, isVideoReady, playerType]);
+    
+    console.log(`${playerType} player: External seek to ${seekToTime}s`);
+    lastSeekTime.current = seekToTime;
+    video.currentTime = seekToTime;
+    setInternalCurrentTime(seekToTime);
+    
+    const fps = asset?.metadata.fps || 30;
+    setCurrentFrame(Math.floor(seekToTime * fps));
+  }, [seekToTime, isVideoReady, playerType, asset]);
 
-  // DISABLE external time synchronization completely to prevent restart issues
-  // Only allow manual seeking via progress bar clicks
-  // useEffect(() => {
-  //   // Commented out to prevent external state from interfering with video playback
-  // }, [currentTime, isVideoReady, playerType]);
+  // Animation frame loop for smooth time updates
+  const updateTimeLoop = useCallback(() => {
+    const video = videoRef.current;
+    if (video && !video.paused && !video.seeking && isVideoReady) {
+      const currentTime = video.currentTime;
+      setInternalCurrentTime(currentTime);
+      
+      const fps = asset?.metadata.fps || 30;
+      setCurrentFrame(Math.floor(currentTime * fps));
+      
+      onTimeUpdate(currentTime);
+    }
+    
+    if (internalIsPlaying) {
+      animationFrameRef.current = requestAnimationFrame(updateTimeLoop);
+    }
+  }, [internalIsPlaying, isVideoReady, asset, onTimeUpdate]);
+
+  // Start/stop animation frame loop based on playing state
+  useEffect(() => {
+    if (internalIsPlaying && isVideoReady) {
+      animationFrameRef.current = requestAnimationFrame(updateTimeLoop);
+    } else if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, [internalIsPlaying, isVideoReady, updateTimeLoop]);
 
   // Handle volume changes
   useEffect(() => {
@@ -251,25 +285,29 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     const video = videoRef.current;
     if (!video || !isVideoReady) return;
 
-    // Use the actual video element state, not external state
-    if (!video.paused) {
-      console.log(`${playerType} player: Video click - pausing at ${video.currentTime}s`);
+    // Autonomous play/pause control - maintain internal state
+    if (internalIsPlaying) {
+      console.log(`${playerType} player: Pausing at frame ${currentFrame} (${internalCurrentTime.toFixed(3)}s)`);
       video.pause();
       setInternalIsPlaying(false);
-      // Still notify parent for UI updates, but don't rely on parent state
-      onPause();
+      onPlayStateChange(false);
     } else {
-      console.log(`${playerType} player: Video click - playing from ${video.currentTime}s`);
+      console.log(`${playerType} player: Playing from frame ${currentFrame} (${internalCurrentTime.toFixed(3)}s)`);
       video.play().catch(console.error);
       setInternalIsPlaying(true);
-      // Still notify parent for UI updates, but don't rely on parent state
-      onPlay();
+      onPlayStateChange(true);
     }
   };
+
+  // Note: Public methods removed for now to avoid unused variable errors
+  // Can be re-added when needed for external programmatic control
 
   const getPlayerColor = () => {
     return playerType === 'source' ? 'orange' : 'blue';
   };
+
+  // Note: Public methods available but not exposed via ref for now
+  // Can be added later if needed for external control
 
   return (
     <div className={`relative w-full h-full bg-black ${className}`}>
