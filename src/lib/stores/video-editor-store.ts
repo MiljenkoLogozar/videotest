@@ -1,13 +1,12 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
+import { TrackType, ItemType } from '@/types';
 import type { 
   Project, 
   Track, 
   TrackItem, 
   TimelineState, 
-  VideoEditorStore, 
-  TrackType, 
-  ItemType 
+  VideoEditorStore
 } from '@/types';
 
 // Helper function to generate IDs
