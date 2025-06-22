@@ -158,6 +158,38 @@ export default function VideoEditorPage() {
         </div>
       </header>
 
+      {/* Upload Modal - Full Screen Overlay */}
+      {showUpload && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75">
+          <div className="w-full max-w-2xl mx-4">
+            <div className="bg-gray-800 rounded-lg p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-white">Upload Video</h2>
+                <button
+                  onClick={() => setShowUpload(false)}
+                  className="p-2 hover:bg-gray-700 rounded-md transition-colors"
+                >
+                  <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              
+              <FileUpload
+                onFileProcessed={handleFileProcessed}
+                onError={handleError}
+              />
+              
+              {error && (
+                <div className="mt-4 p-4 bg-red-900 border border-red-700 rounded-md">
+                  <p className="text-red-100">{error}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex h-[calc(100vh-80px)]">
         {/* Left Sidebar - Video Files */}
         <div className="w-80 bg-gray-800 border-r border-gray-700 flex flex-col">
@@ -241,22 +273,6 @@ export default function VideoEditorPage() {
             {/* Source Player Panel */}
             <div className="w-1/2 flex flex-col border-r border-gray-700">
               <div className="flex-1 bg-black relative">
-                {showUpload ? (
-                  <div className="absolute inset-0 flex items-center justify-center p-8 bg-black bg-opacity-90">
-                    <div className="w-full max-w-lg">
-                      <FileUpload
-                        onFileProcessed={handleFileProcessed}
-                        onError={handleError}
-                      />
-                      {error && (
-                        <div className="mt-4 p-4 bg-red-900 border border-red-700 rounded-md">
-                          <p className="text-red-100">{error}</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ) : null}
-                
                 {/* Video Player */}
                 <VideoPlayer
                   asset={selectedVideo}
