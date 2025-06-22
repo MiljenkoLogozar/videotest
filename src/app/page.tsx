@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Settings, Upload as UploadIcon } from 'lucide-react';
 import FileUpload from '@/components/FileUpload/FileUpload';
+import ClientWrapper from '@/components/ClientWrapper';
 import { useVideoEditorStore, useCurrentProject, useTimeline, useTimelineActions, useProjectActions } from '@/lib/stores/video-editor-store';
 import type { VideoSegments } from '@/types';
 
@@ -49,9 +50,10 @@ export default function VideoEditorPage() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      {/* Header */}
-      <header className="bg-gray-800 border-b border-gray-700 px-6 py-4">
+    <ClientWrapper>
+      <div className="min-h-screen bg-black text-white">
+        {/* Header */}
+        <header className="bg-gray-800 border-b border-gray-700 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <h1 className="text-xl font-bold">Video Editor</h1>
@@ -345,6 +347,6 @@ export default function VideoEditorPage() {
           </div>
         </div>
       </div>
-    </div>
+    </ClientWrapper>
   );
 }

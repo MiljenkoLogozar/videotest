@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { create, createStore } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import type { 
   Project, 
@@ -23,7 +23,238 @@ const initialTimelineState: TimelineState = {
   duration: 0,
 };
 
-// Create the store with Immer for immutable updates
+// Store factory function for provider pattern
+export const createVideoEditorStore = () => {
+  return createStore<VideoEditorStore>()(
+    immer((set, get) => ({
+      // State
+      currentProject: null,
+      projects: [],
+      timeline: initialTimelineState,
+      isLoading: false,
+      error: null,
+
+    // Project actions
+    createProject: (title: string) => {
+      set((state) => {
+        const newProject: Project = {
+          id: generateId(),
+          title,
+          duration: 0,
+          fps: 30,
+          resolution: { width: 1920, height: 1080 },
+          tracks: [
+            // Create default tracks: 4 video + 8 audio
+            ...Array.from({ length: 4 }, (_, i) => ({
+              id: generateId(),
+              projectId: '',
+              type: TrackType.VIDEO,
+              index: i,
+              items: [],
+            })),
+            ...Array.from({ length: 8 }, (_, i) => ({
+              id: generateId(),
+              projectId: '',
+              type: TrackType.AUDIO,
+              index: i + 4,
+              items: [],
+            })),
+          ],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+
+        // Set project ID in tracks
+        newProject.tracks.forEach(track => {
+          track.projectId = newProject.id;
+        });
+
+        state.currentProject = newProject;
+        state.projects.push(newProject);
+        state.timeline = { ...initialTimelineState };
+      });
+    },
+
+    loadProject: async (id: string) => {
+      set((state) => {
+        state.isLoading = true;
+        state.error = null;
+      });
+
+      try {
+        // In a real app, this would be an API call
+        const project = get().projects.find(p => p.id === id);
+        
+        if (!project) {
+          throw new Error('Project not found');
+        }
+
+        set((state) => {
+          state.currentProject = project;
+          state.timeline = {
+            ...initialTimelineState,
+            duration: project.duration,
+          };
+          state.isLoading = false;
+        });
+      } catch (error) {
+        set((state) => {
+          state.error = error instanceof Error ? error.message : 'Failed to load project';
+          state.isLoading = false;
+        });
+      }
+    },
+
+    updateProject: (updates: Partial<Project>) => {
+      set((state) => {
+        if (state.currentProject) {
+          Object.assign(state.currentProject, updates, { updatedAt: new Date() });
+          
+          // Update in projects array
+          const projectIndex = state.projects.findIndex(p => p.id === state.currentProject!.id);
+          if (projectIndex !== -1) {
+            Object.assign(state.projects[projectIndex], updates, { updatedAt: new Date() });
+          }
+        }
+      });
+    },
+
+    // Track item actions
+    addTrackItem: (trackId: string, item: Omit<TrackItem, 'id'>) => {
+      set((state) => {
+        if (!state.currentProject) return;
+
+        const track = state.currentProject.tracks.find(t => t.id === trackId);
+        if (!track) return;
+
+        const newItem: TrackItem = {
+          ...item,
+          id: generateId(),
+          trackId,
+        };
+
+        track.items.push(newItem);
+
+        // Update project duration if necessary
+        const itemEndTime = newItem.startTime + newItem.duration;
+        if (itemEndTime > state.currentProject.duration) {
+          state.currentProject.duration = itemEndTime;
+          state.timeline.duration = itemEndTime;
+        }
+
+        state.currentProject.updatedAt = new Date();
+      });
+    },
+
+    updateTrackItem: (itemId: string, updates: Partial<TrackItem>) => {
+      set((state) => {
+        if (!state.currentProject) return;
+
+        // Find the item across all tracks
+        for (const track of state.currentProject.tracks) {
+          const item = track.items.find(i => i.id === itemId);
+          if (item) {
+            Object.assign(item, updates);
+            
+            // Update project duration if necessary
+            const itemEndTime = item.startTime + item.duration;
+            if (itemEndTime > state.currentProject.duration) {
+              state.currentProject.duration = itemEndTime;
+              state.timeline.duration = itemEndTime;
+            }
+            
+            state.currentProject.updatedAt = new Date();
+            break;
+          }
+        }
+      });
+    },
+
+    deleteTrackItem: (itemId: string) => {
+      set((state) => {
+        if (!state.currentProject) return;
+
+        // Find and remove the item
+        for (const track of state.currentProject.tracks) {
+          const itemIndex = track.items.findIndex(i => i.id === itemId);
+          if (itemIndex !== -1) {
+            track.items.splice(itemIndex, 1);
+            
+            // Remove from selection if selected
+            const selectionIndex = state.timeline.selectedItems.indexOf(itemId);
+            if (selectionIndex !== -1) {
+              state.timeline.selectedItems.splice(selectionIndex, 1);
+            }
+            
+            state.currentProject.updatedAt = new Date();
+            break;
+          }
+        }
+
+        // Recalculate project duration
+        let maxDuration = 0;
+        for (const track of state.currentProject.tracks) {
+          for (const item of track.items) {
+            const itemEndTime = item.startTime + item.duration;
+            if (itemEndTime > maxDuration) {
+              maxDuration = itemEndTime;
+            }
+          }
+        }
+        state.currentProject.duration = maxDuration;
+        state.timeline.duration = maxDuration;
+      });
+    },
+
+    // Timeline actions
+    setCurrentTime: (time: number) => {
+      set((state) => {
+        state.timeline.currentTime = Math.max(0, Math.min(time, state.timeline.duration));
+      });
+    },
+
+    play: () => {
+      set((state) => {
+        state.timeline.isPlaying = true;
+      });
+    },
+
+    pause: () => {
+      set((state) => {
+        state.timeline.isPlaying = false;
+      });
+    },
+
+    seek: (time: number) => {
+      set((state) => {
+        state.timeline.currentTime = Math.max(0, Math.min(time, state.timeline.duration));
+        state.timeline.isPlaying = false;
+      });
+    },
+
+    setZoom: (zoom: number) => {
+      set((state) => {
+        // Clamp zoom between reasonable values (10 pixels/second to 1000 pixels/second)
+        state.timeline.zoom = Math.max(10, Math.min(1000, zoom));
+      });
+    },
+
+    setOffset: (offset: number) => {
+      set((state) => {
+        state.timeline.offset = offset;
+      });
+    },
+
+    selectItems: (itemIds: string[]) => {
+      set((state) => {
+        state.timeline.selectedItems = [...itemIds];
+      });
+    },
+  }))
+  );
+};
+
+// Create the global store instance for backwards compatibility
 export const useVideoEditorStore = create<VideoEditorStore>()(
   immer((set, get) => ({
     // State
@@ -258,20 +489,20 @@ export const useTimeline = () => useVideoEditorStore(state => state.timeline);
 export const useIsLoading = () => useVideoEditorStore(state => state.isLoading);
 export const useError = () => useVideoEditorStore(state => state.error);
 
-// Action hooks
-export const useProjectActions = () => useVideoEditorStore(state => ({
+// Action hooks with stable selectors
+const projectActionsSelector = (state: VideoEditorStore) => ({
   createProject: state.createProject,
   loadProject: state.loadProject,
   updateProject: state.updateProject,
-}));
+});
 
-export const useTrackItemActions = () => useVideoEditorStore(state => ({
+const trackItemActionsSelector = (state: VideoEditorStore) => ({
   addTrackItem: state.addTrackItem,
   updateTrackItem: state.updateTrackItem,
   deleteTrackItem: state.deleteTrackItem,
-}));
+});
 
-export const useTimelineActions = () => useVideoEditorStore(state => ({
+const timelineActionsSelector = (state: VideoEditorStore) => ({
   setCurrentTime: state.setCurrentTime,
   play: state.play,
   pause: state.pause,
@@ -279,7 +510,11 @@ export const useTimelineActions = () => useVideoEditorStore(state => ({
   setZoom: state.setZoom,
   setOffset: state.setOffset,
   selectItems: state.selectItems,
-}));
+});
+
+export const useProjectActions = () => useVideoEditorStore(projectActionsSelector);
+export const useTrackItemActions = () => useVideoEditorStore(trackItemActionsSelector);
+export const useTimelineActions = () => useVideoEditorStore(timelineActionsSelector);
 
 // Computed selectors
 export const useSelectedTrackItems = () => {
