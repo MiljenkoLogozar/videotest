@@ -54,7 +54,8 @@ export interface VideoMetadata {
 }
 
 export interface VideoSegments {
-  segments: Blob[]; // TS segments
+  segments: Blob[]; // MP4 segments for timeline scrubbing
+  fullVideo: Blob; // Complete video file for playback
   metadata: VideoMetadata;
   thumbnails: Blob[]; // Generated thumbnails
   waveform: Float32Array; // Audio waveform data

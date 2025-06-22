@@ -70,9 +70,15 @@ export default class VideoSegmenter {
         onProgress?.(Math.round(progress * 100));
       });
 
-      // Simple segmentation with timeout
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Segmentation timeout after 60 seconds')), 60000);
+      });
+
+      // Create both segments and a full concatenated video
       console.log('Starting video segmentation...');
       
+      // First create segments for timeline scrubbing
       const segmentationPromise = this.ffmpeg.exec([
         '-i', 'input.mp4',
         '-c', 'copy', // Copy streams without re-encoding
@@ -85,13 +91,20 @@ export default class VideoSegmenter {
         '-y', // Overwrite existing files
         'segment_%03d.mp4'
       ]);
-
-      // Add timeout to prevent hanging
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Segmentation timeout after 60 seconds')), 60000);
-      });
-
+      
       await Promise.race([segmentationPromise, timeoutPromise]);
+      
+      // Create a full video copy for playback
+      console.log('Creating full video copy...');
+      const fullVideoPromise = this.ffmpeg.exec([
+        '-i', 'input.mp4',
+        '-c', 'copy', // Copy without re-encoding
+        '-movflags', '+faststart', // Optimize for web playback
+        '-y',
+        'full_video.mp4'
+      ]);
+
+      await Promise.race([fullVideoPromise, timeoutPromise]);
       console.log('Video segmentation completed');
 
       // Manual progress update
@@ -111,9 +124,13 @@ export default class VideoSegmenter {
       // Manual progress update
       onProgress?.(90);
 
-      // Collect segments
-      console.log('Collecting segments...');
+      // Collect segments and full video
+      console.log('Collecting segments and full video...');
       const segments = await this.collectSegments();
+      
+      // Read the full video file
+      const fullVideoData = await this.ffmpeg.readFile('full_video.mp4');
+      const fullVideoBlob = new Blob([fullVideoData], { type: 'video/mp4' });
       
       // Manual progress update
       onProgress?.(95);
@@ -130,6 +147,7 @@ export default class VideoSegmenter {
 
       return {
         segments,
+        fullVideo: fullVideoBlob, // Add full video for playback
         metadata,
         thumbnails,
         waveform,
@@ -278,7 +296,7 @@ export default class VideoSegmenter {
   private async cleanup(): Promise<void> {
     try {
       // Clean up common files
-      const filesToClean = ['input.mp4', 'metadata.json', 'audio.raw', 'playlist.m3u8'];
+      const filesToClean = ['input.mp4', 'metadata.json', 'audio.raw', 'playlist.m3u8', 'full_video.mp4'];
       
       for (const fileName of filesToClean) {
         try {

@@ -84,31 +84,38 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           console.log(`${playerType} player: Using HLS playlist with ${videoAsset.segmentUrls.length} segments`);
           video.src = playlistUrl;
         } else {
-          // Fallback to first segment for browsers without native HLS support
-          console.warn(`${playerType} player: Native HLS not supported, using first segment`);
+          // Fallback to full video for browsers without native HLS support
+          console.warn(`${playerType} player: Native HLS not supported, using full video`);
           
           // Clean up playlist URL since we're not using it
           URL.revokeObjectURL(playlistUrl);
           setCurrentPlaylistUrl(null);
           
-          // Use first segment directly
-          if (videoAsset.segmentUrls.length > 0) {
-            const segmentUrl = videoAsset.segmentUrls[0];
-            console.log(`${playerType} player: Loading segment:`, segmentUrl);
-            console.log(`${playerType} player: Segment URL type:`, typeof segmentUrl);
-            console.log(`${playerType} player: Segment URL starts with blob:`, segmentUrl.startsWith('blob:'));
+          // Use full video instead of just first segment
+          if (videoAsset.fullVideoUrl) {
+            console.log(`${playerType} player: Loading full video:`, videoAsset.fullVideoUrl);
+            console.log(`${playerType} player: Full video URL type:`, typeof videoAsset.fullVideoUrl);
+            console.log(`${playerType} player: Full video URL starts with blob:`, videoAsset.fullVideoUrl.startsWith('blob:'));
             
-            video.src = segmentUrl;
+            video.src = videoAsset.fullVideoUrl;
           } else {
-            throw new Error('No video segments available');
+            throw new Error('Full video not available');
           }
         }
+        
+        // Add timeout for loading (declare before event handlers)
+        const loadTimeout = setTimeout(() => {
+          console.warn(`${playerType} player: Loading timeout after 10 seconds`);
+          setError('Video loading timeout - please try again');
+          setIsLoading(false);
+        }, 10000);
         
         // Set up event listeners
         const handleLoadedMetadata = () => {
           setDuration(video.duration || videoAsset.metadata.duration);
           setIsVideoReady(true);
           setIsLoading(false);
+          clearTimeout(loadTimeout); // Clear timeout on successful load
           console.log(`${playerType} player loaded:`, video.duration, 'seconds');
         };
 
@@ -126,6 +133,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           
           setError(`Failed to load video: ${errorMessage}`);
           setIsLoading(false);
+          clearTimeout(loadTimeout); // Clear timeout on error
         };
 
         const handleTimeUpdate = () => {
@@ -137,6 +145,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         const handleCanPlay = () => {
           console.log(`${playerType} player: Video can start playing`);
           setIsLoading(false);
+          clearTimeout(loadTimeout); // Clear timeout when video can play
         };
 
         const handleLoadStart = () => {
@@ -153,13 +162,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         video.addEventListener('canplay', handleCanPlay);
         video.addEventListener('loadstart', handleLoadStart);
         video.addEventListener('progress', handleProgress);
-
-        // Add timeout for loading
-        const loadTimeout = setTimeout(() => {
-          console.warn(`${playerType} player: Loading timeout after 10 seconds`);
-          setError('Video loading timeout - please try again');
-          setIsLoading(false);
-        }, 10000);
 
         // Load the video
         video.load();

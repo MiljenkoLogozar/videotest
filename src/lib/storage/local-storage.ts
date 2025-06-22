@@ -6,7 +6,8 @@ export interface LocalVideoAsset {
   fileName: string;
   fileSize: number;
   processedAt: Date;
-  segmentUrls: string[]; // blob URLs
+  segmentUrls: string[]; // blob URLs for segments
+  fullVideoUrl: string; // blob URL for complete video
   thumbnailUrls: string[]; // blob URLs
   playlistContent: string; // M3U8 content
   metadata: VideoSegments['metadata'];
@@ -23,8 +24,9 @@ class LocalVideoStorage {
     fileSize: number,
     segments: VideoSegments
   ): LocalVideoAsset {
-    // Create blob URLs for segments and thumbnails
+    // Create blob URLs for segments, full video, and thumbnails
     const segmentUrls = segments.segments.map(blob => URL.createObjectURL(blob));
+    const fullVideoUrl = URL.createObjectURL(segments.fullVideo);
     const thumbnailUrls = segments.thumbnails.map(blob => URL.createObjectURL(blob));
 
     const asset: LocalVideoAsset = {
@@ -33,6 +35,7 @@ class LocalVideoStorage {
       fileSize,
       processedAt: new Date(),
       segmentUrls,
+      fullVideoUrl,
       thumbnailUrls,
       playlistContent: segments.playlistUrl, // This is actually M3U8 content in local mode
       metadata: segments.metadata,
@@ -40,7 +43,7 @@ class LocalVideoStorage {
     };
 
     this.assets.set(id, asset);
-    console.log(`Stored video asset locally: ${fileName} (${segmentUrls.length} segments)`);
+    console.log(`Stored video asset locally: ${fileName} (${segmentUrls.length} segments + full video)`);
     
     return asset;
   }
@@ -61,6 +64,7 @@ class LocalVideoStorage {
     if (asset) {
       // Revoke all blob URLs to free memory
       asset.segmentUrls.forEach(url => URL.revokeObjectURL(url));
+      URL.revokeObjectURL(asset.fullVideoUrl);
       asset.thumbnailUrls.forEach(url => URL.revokeObjectURL(url));
       
       this.assets.delete(id);
