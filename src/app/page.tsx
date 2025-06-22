@@ -3,15 +3,18 @@
 import React, { useEffect, useState } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Settings, Upload as UploadIcon } from 'lucide-react';
 import FileUpload from '@/components/FileUpload/FileUpload';
-import { useVideoEditorStore, useCurrentProject, useTimeline, useTimelineActions, useProjectActions } from '@/lib/stores/video-editor-store';
+import VideoPlayer from '@/components/VideoPlayer/VideoPlayer';
+import { useCurrentProject, useTimeline, useTimelineActions, useProjectActions } from '@/lib/stores/video-editor-store';
 import { localVideoStorage, generateAssetId } from '@/lib/storage/local-storage';
 import type { VideoSegments } from '@/types';
+import type { LocalVideoAsset } from '@/lib/storage/local-storage';
 
 export default function VideoEditorPage() {
   const [hasMounted, setHasMounted] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [videoCount, setVideoCount] = useState(0);
+  const [selectedVideo, setSelectedVideo] = useState<LocalVideoAsset | null>(null);
 
   const currentProject = useCurrentProject();
   const timeline = useTimeline();
@@ -83,6 +86,27 @@ export default function VideoEditorPage() {
   const handleError = (errorMessage: string) => {
     setError(errorMessage);
     console.error('Video processing error:', errorMessage);
+  };
+
+  const handleVideoSelect = (asset: LocalVideoAsset) => {
+    console.log('Selected video asset:', asset);
+    setSelectedVideo(asset);
+  };
+
+  const handleVideoTimeUpdate = (time: number) => {
+    setCurrentTime(time);
+  };
+
+  const handleVideoPlay = () => {
+    play();
+  };
+
+  const handleVideoPause = () => {
+    pause();
+  };
+
+  const handleVideoSeek = (time: number) => {
+    seek(time);
   };
 
   const formatTime = (seconds: number): string => {
@@ -159,11 +183,12 @@ export default function VideoEditorPage() {
               localVideoStorage.listAssets().map((asset) => (
                 <div
                   key={asset.id}
-                  className="bg-gray-700 rounded-lg p-3 hover:bg-gray-600 transition-colors cursor-pointer"
-                  onClick={() => {
-                    console.log('Selected video asset:', asset);
-                    // TODO: Load video into player
-                  }}
+                  className={`rounded-lg p-3 transition-colors cursor-pointer ${
+                    selectedVideo?.id === asset.id 
+                      ? 'bg-orange-600 hover:bg-orange-700 ring-2 ring-orange-400' 
+                      : 'bg-gray-700 hover:bg-gray-600'
+                  }`}
+                  onClick={() => handleVideoSelect(asset)}
                 >
                   {/* Thumbnail */}
                   <div className="w-full h-20 bg-gray-600 rounded mb-2 overflow-hidden">
@@ -217,7 +242,7 @@ export default function VideoEditorPage() {
             <div className="w-1/2 flex flex-col border-r border-gray-700">
               <div className="flex-1 bg-black relative">
                 {showUpload ? (
-                  <div className="absolute inset-0 flex items-center justify-center p-8">
+                  <div className="absolute inset-0 flex items-center justify-center p-8 bg-black bg-opacity-90">
                     <div className="w-full max-w-lg">
                       <FileUpload
                         onFileProcessed={handleFileProcessed}
@@ -230,25 +255,31 @@ export default function VideoEditorPage() {
                       )}
                     </div>
                   </div>
-                ) : (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="text-center">
-                      <div className="w-64 h-36 bg-gray-800 rounded-lg flex items-center justify-center mb-4">
-                        <Play className="h-12 w-12 text-gray-600" />
-                      </div>
-                      <p className="text-gray-400 text-sm">Source Player</p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Raw video clips
-                      </p>
-                    </div>
-                  </div>
-                )}
+                ) : null}
+                
+                {/* Video Player */}
+                <VideoPlayer
+                  asset={selectedVideo}
+                  currentTime={timeline.currentTime}
+                  isPlaying={timeline.isPlaying}
+                  onTimeUpdate={handleVideoTimeUpdate}
+                  onPlay={handleVideoPlay}
+                  onPause={handleVideoPause}
+                  onSeek={handleVideoSeek}
+                  playerType="source"
+                  className="w-full h-full"
+                />
               </div>
               
               {/* Source Player Controls */}
               <div className="h-20 bg-gray-800 border-t border-gray-700 px-4 py-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
+                    {selectedVideo && (
+                      <div className="text-xs text-orange-400 mr-2 bg-orange-900 px-2 py-1 rounded">
+                        SOURCE: {selectedVideo.fileName}
+                      </div>
+                    )}
                     <button
                       onClick={() => seek(0)}
                       className="p-1.5 hover:bg-gray-700 rounded transition-colors"
@@ -301,17 +332,18 @@ export default function VideoEditorPage() {
             {/* Program Player Panel */}
             <div className="w-1/2 flex flex-col">
               <div className="flex-1 bg-black relative">
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="w-64 h-36 bg-gray-800 rounded-lg flex items-center justify-center mb-4">
-                      <Play className="h-12 w-12 text-gray-600" />
-                    </div>
-                    <p className="text-gray-400 text-sm">Program Player</p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Final edited output
-                    </p>
-                  </div>
-                </div>
+                {/* Program Video Player - Currently shows timeline output */}
+                <VideoPlayer
+                  asset={null} // TODO: Will show timeline composition in Phase 3
+                  currentTime={timeline.currentTime}
+                  isPlaying={timeline.isPlaying}
+                  onTimeUpdate={handleVideoTimeUpdate}
+                  onPlay={handleVideoPlay}
+                  onPause={handleVideoPause}
+                  onSeek={handleVideoSeek}
+                  playerType="program"
+                  className="w-full h-full"
+                />
               </div>
               
               {/* Program Player Controls */}
@@ -440,43 +472,42 @@ export default function VideoEditorPage() {
             )}
 
             <div className="mt-8">
-              <h3 className="text-lg font-semibold mb-4">Phase 1 Progress</h3>
+              <h3 className="text-lg font-semibold mb-4">Development Progress</h3>
               <div className="space-y-2">
+                {/* Phase 1 - Complete */}
                 <div className="flex items-center space-x-2">
                   <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                  <span className="text-sm">Project Setup ✓</span>
+                  <span className="text-sm">Phase 1: Upload & Processing ✓</span>
                 </div>
+                
+                {/* Phase 2 - In Progress */}
                 <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                  <span className="text-sm">FFmpeg Integration ✓</span>
+                  <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                  <span className="text-sm">Phase 2: Video Player (Current)</span>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                  <span className="text-sm">File Upload ✓</span>
+                <div className="ml-6 space-y-1">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                    <span className="text-xs text-gray-300">Video Player Component ✓</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                    <span className="text-xs text-gray-300">File Selection ✓</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
+                    <span className="text-xs text-gray-300">HLS Playback (Next)</span>
+                  </div>
                 </div>
+                
+                {/* Phase 3 - Pending */}
                 <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                  <span className="text-sm">State Management ✓</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                  <span className="text-sm">Dual Player Layout ✓</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                  <span className="text-sm">Local Processing ✓</span>
+                  <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
+                  <span className="text-sm">Phase 3: Timeline</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
-                  <span className="text-sm">S3 Storage (Phase 2)</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
-                  <span className="text-sm">Video Player (Phase 2)</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
-                  <span className="text-sm">Timeline (Phase 3)</span>
+                  <span className="text-sm">Phase 4: Export</span>
                 </div>
               </div>
             </div>
