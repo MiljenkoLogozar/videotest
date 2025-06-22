@@ -86,7 +86,22 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         } else {
           // Fallback to first segment for browsers without native HLS support
           console.warn(`${playerType} player: Native HLS not supported, using first segment`);
-          video.src = videoAsset.segmentUrls[0];
+          
+          // Clean up playlist URL since we're not using it
+          URL.revokeObjectURL(playlistUrl);
+          setCurrentPlaylistUrl(null);
+          
+          // Use first segment directly
+          if (videoAsset.segmentUrls.length > 0) {
+            const segmentUrl = videoAsset.segmentUrls[0];
+            console.log(`${playerType} player: Loading segment:`, segmentUrl);
+            console.log(`${playerType} player: Segment URL type:`, typeof segmentUrl);
+            console.log(`${playerType} player: Segment URL starts with blob:`, segmentUrl.startsWith('blob:'));
+            
+            video.src = segmentUrl;
+          } else {
+            throw new Error('No video segments available');
+          }
         }
         
         // Set up event listeners
@@ -99,7 +114,17 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
         const handleError = (e: Event) => {
           console.error(`${playerType} player error:`, e);
-          setError('Failed to load video');
+          const target = e.target as HTMLVideoElement;
+          const errorCode = target.error?.code;
+          const errorMessage = target.error?.message || 'Unknown video error';
+          
+          console.error(`${playerType} player error details:`, {
+            code: errorCode,
+            message: errorMessage,
+            src: target.src
+          });
+          
+          setError(`Failed to load video: ${errorMessage}`);
           setIsLoading(false);
         };
 
@@ -109,18 +134,45 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           }
         };
 
+        const handleCanPlay = () => {
+          console.log(`${playerType} player: Video can start playing`);
+          setIsLoading(false);
+        };
+
+        const handleLoadStart = () => {
+          console.log(`${playerType} player: Started loading video`);
+        };
+
+        const handleProgress = () => {
+          console.log(`${playerType} player: Loading progress`);
+        };
+
         video.addEventListener('loadedmetadata', handleLoadedMetadata);
         video.addEventListener('error', handleError);
         video.addEventListener('timeupdate', handleTimeUpdate);
+        video.addEventListener('canplay', handleCanPlay);
+        video.addEventListener('loadstart', handleLoadStart);
+        video.addEventListener('progress', handleProgress);
+
+        // Add timeout for loading
+        const loadTimeout = setTimeout(() => {
+          console.warn(`${playerType} player: Loading timeout after 10 seconds`);
+          setError('Video loading timeout - please try again');
+          setIsLoading(false);
+        }, 10000);
 
         // Load the video
         video.load();
 
         // Cleanup function
         return () => {
+          clearTimeout(loadTimeout);
           video.removeEventListener('loadedmetadata', handleLoadedMetadata);
           video.removeEventListener('error', handleError);
           video.removeEventListener('timeupdate', handleTimeUpdate);
+          video.removeEventListener('canplay', handleCanPlay);
+          video.removeEventListener('loadstart', handleLoadStart);
+          video.removeEventListener('progress', handleProgress);
           
           // Clean up playlist URL
           if (currentPlaylistUrl) {
@@ -236,6 +288,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         onClick={handleVideoClick}
         playsInline
         muted={isMuted}
+        preload="metadata"
       />
 
       {/* Loading State */}
