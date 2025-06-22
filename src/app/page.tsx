@@ -109,6 +109,32 @@ export default function VideoEditorPage() {
     seek(time);
   };
 
+  const handleSourceProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!selectedVideo) return;
+    
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const percentage = clickX / rect.width;
+    const newTime = percentage * selectedVideo.metadata.duration;
+    
+    // Ensure time is within bounds
+    const clampedTime = Math.max(0, Math.min(newTime, selectedVideo.metadata.duration));
+    seek(clampedTime);
+  };
+
+  const handleProgramProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (timeline.duration === 0) return;
+    
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const percentage = clickX / rect.width;
+    const newTime = percentage * timeline.duration;
+    
+    // Ensure time is within bounds
+    const clampedTime = Math.max(0, Math.min(newTime, timeline.duration));
+    seek(clampedTime);
+  };
+
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
@@ -321,22 +347,68 @@ export default function VideoEditorPage() {
                     >
                       <SkipForward className="h-4 w-4" />
                     </button>
+                    
+                    {/* Volume Controls */}
+                    {selectedVideo && (
+                      <div className="flex items-center space-x-2 ml-4">
+                        <button className="p-1.5 hover:bg-gray-700 rounded transition-colors">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M6 10l4-4v3h7v2H10v3l-4-4z" />
+                          </svg>
+                        </button>
+                        <input
+                          type="range"
+                          min="0"
+                          max="1"
+                          step="0.1"
+                          defaultValue="1"
+                          className="w-16 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer"
+                        />
+                      </div>
+                    )}
                   </div>
                   
                   <div className="flex items-center space-x-2 text-xs text-gray-400">
-                    <span>{formatTime(timeline.currentTime)}</span>
+                    <span className="font-mono">
+                      {selectedVideo 
+                        ? formatTimeWithFrames(timeline.currentTime, selectedVideo.metadata.fps)
+                        : formatTime(timeline.currentTime)
+                      }
+                    </span>
                     <span>/</span>
-                    <span>{formatTime(timeline.duration)}</span>
+                    <span className="font-mono">
+                      {selectedVideo 
+                        ? formatTimeWithFrames(selectedVideo.metadata.duration, selectedVideo.metadata.fps)
+                        : formatTime(timeline.duration)
+                      }
+                    </span>
+                    {selectedVideo && (
+                      <span className="text-gray-500 ml-2">
+                        {selectedVideo.metadata.width}×{selectedVideo.metadata.height} {selectedVideo.metadata.fps}fps
+                      </span>
+                    )}
                   </div>
                 </div>
                 
                 <div className="mt-2">
-                  <div className="w-full h-1 bg-gray-700 rounded-full">
+                  <div 
+                    className="relative w-full h-2 bg-gray-700 rounded-full cursor-pointer hover:h-3 transition-all"
+                    onClick={handleSourceProgressClick}
+                  >
                     <div 
-                      className="h-1 bg-orange-500 rounded-full transition-all duration-100"
+                      className="h-full bg-orange-500 rounded-full transition-all duration-100"
                       style={{ 
-                        width: timeline.duration > 0 
-                          ? `${(timeline.currentTime / timeline.duration) * 100}%` 
+                        width: selectedVideo && selectedVideo.metadata.duration > 0
+                          ? `${(timeline.currentTime / selectedVideo.metadata.duration) * 100}%` 
+                          : '0%' 
+                      }}
+                    />
+                    {/* Scrubber handle */}
+                    <div 
+                      className="absolute top-0 w-4 h-2 bg-orange-300 rounded-full transform -translate-x-1/2 cursor-grab active:cursor-grabbing hover:w-5 hover:h-3 transition-all"
+                      style={{ 
+                        left: selectedVideo && selectedVideo.metadata.duration > 0
+                          ? `${(timeline.currentTime / selectedVideo.metadata.duration) * 100}%` 
                           : '0%' 
                       }}
                     />
@@ -394,18 +466,37 @@ export default function VideoEditorPage() {
                   </div>
                   
                   <div className="flex items-center space-x-2 text-xs text-gray-400">
-                    <span>{formatTime(timeline.currentTime)}</span>
+                    <span className="font-mono">
+                      {formatTime(timeline.currentTime)}
+                    </span>
                     <span>/</span>
-                    <span>{formatTime(timeline.duration)}</span>
+                    <span className="font-mono">
+                      {formatTime(timeline.duration)}
+                    </span>
+                    <span className="text-gray-500 ml-2">
+                      PROGRAM OUTPUT
+                    </span>
                   </div>
                 </div>
                 
                 <div className="mt-2">
-                  <div className="w-full h-1 bg-gray-700 rounded-full">
+                  <div 
+                    className="relative w-full h-2 bg-gray-700 rounded-full cursor-pointer hover:h-3 transition-all"
+                    onClick={handleProgramProgressClick}
+                  >
                     <div 
-                      className="h-1 bg-blue-500 rounded-full transition-all duration-100"
+                      className="h-full bg-blue-500 rounded-full transition-all duration-100"
                       style={{ 
                         width: timeline.duration > 0 
+                          ? `${(timeline.currentTime / timeline.duration) * 100}%` 
+                          : '0%' 
+                      }}
+                    />
+                    {/* Scrubber handle */}
+                    <div 
+                      className="absolute top-0 w-4 h-2 bg-blue-300 rounded-full transform -translate-x-1/2 cursor-grab active:cursor-grabbing hover:w-5 hover:h-3 transition-all"
+                      style={{ 
+                        left: timeline.duration > 0 
                           ? `${(timeline.currentTime / timeline.duration) * 100}%` 
                           : '0%' 
                       }}

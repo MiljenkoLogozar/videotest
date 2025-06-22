@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Play, Pause, Volume2, VolumeX, RotateCcw } from 'lucide-react';
+import { Play } from 'lucide-react';
 import type { LocalVideoAsset } from '@/lib/storage/local-storage';
 
 interface VideoPlayerProps {
@@ -243,15 +243,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     video.volume = isMuted ? 0 : volume;
   }, [volume, isMuted]);
 
-  const handleVolumeChange = (newVolume: number) => {
-    setVolume(newVolume);
-    setIsMuted(newVolume === 0);
-  };
-
-  const toggleMute = () => {
-    setIsMuted(!isMuted);
-  };
-
   const handleVideoClick = () => {
     if (isPlaying) {
       onPause();
@@ -260,25 +251,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
   };
 
-  const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!asset || duration === 0) return;
-    
-    const rect = e.currentTarget.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const percentage = clickX / rect.width;
-    const newTime = percentage * duration;
-    
-    // Ensure time is within bounds
-    const clampedTime = Math.max(0, Math.min(newTime, duration));
-    onSeek(clampedTime);
-  };
-
   const getPlayerColor = () => {
     return playerType === 'source' ? 'orange' : 'blue';
-  };
-
-  const getControlsColor = () => {
-    return playerType === 'source' ? 'bg-orange-600 hover:bg-orange-700' : 'bg-blue-600 hover:bg-blue-700';
   };
 
   return (
@@ -291,6 +265,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         playsInline
         muted={isMuted}
         preload="metadata"
+        controls={false}
       />
 
       {/* Loading State */}
@@ -335,99 +310,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         </div>
       )}
 
-      {/* Video Controls Overlay */}
-      {asset && isVideoReady && (
-        <div className="absolute bottom-4 left-4 right-4">
-          <div className="bg-black bg-opacity-75 rounded-lg p-3">
-            <div className="flex items-center space-x-3">
-              {/* Play/Pause Button */}
-              <button
-                onClick={handleVideoClick}
-                className={`p-2 ${getControlsColor()} rounded-full transition-colors`}
-              >
-                {isPlaying ? (
-                  <Pause className="w-4 h-4" />
-                ) : (
-                  <Play className="w-4 h-4" />
-                )}
-              </button>
-
-              {/* Volume Control */}
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={toggleMute}
-                  className="p-1 hover:bg-gray-600 rounded transition-colors"
-                >
-                  {isMuted ? (
-                    <VolumeX className="w-4 h-4" />
-                  ) : (
-                    <Volume2 className="w-4 h-4" />
-                  )}
-                </button>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.1"
-                  value={isMuted ? 0 : volume}
-                  onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
-                  className="w-16 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer"
-                />
-              </div>
-
-              {/* Reset Button */}
-              <button
-                onClick={() => onSeek(0)}
-                className="p-1 hover:bg-gray-600 rounded transition-colors"
-                title="Reset to start"
-              >
-                <RotateCcw className="w-4 h-4" />
-              </button>
-
-              {/* Time Display */}
-              <div className="text-xs text-gray-300 ml-auto">
-                {asset && (
-                  <>
-                    <span className="font-mono">
-                      {Math.floor(currentTime / 60).toString().padStart(2, '0')}:
-                      {Math.floor(currentTime % 60).toString().padStart(2, '0')}
-                    </span>
-                    <span className="mx-1">/</span>
-                    <span className="font-mono">
-                      {Math.floor(duration / 60).toString().padStart(2, '0')}:
-                      {Math.floor(duration % 60).toString().padStart(2, '0')}
-                    </span>
-                  </>
-                )}
-              </div>
-            </div>
-            
-            {/* Progress Scrubber */}
-            <div className="mt-2">
-              <div className="relative w-full h-2 bg-gray-700 rounded-full cursor-pointer"
-                   onClick={handleProgressClick}>
-                <div 
-                  className={`h-2 rounded-full transition-all duration-100 ${
-                    playerType === 'source' ? 'bg-orange-500' : 'bg-blue-500'
-                  }`}
-                  style={{ 
-                    width: duration > 0 ? `${(currentTime / duration) * 100}%` : '0%' 
-                  }}
-                />
-                {/* Scrubber handle */}
-                <div 
-                  className={`absolute top-0 w-4 h-2 rounded-full transform -translate-x-1/2 cursor-grab active:cursor-grabbing ${
-                    playerType === 'source' ? 'bg-orange-300' : 'bg-blue-300'
-                  }`}
-                  style={{ 
-                    left: duration > 0 ? `${(currentTime / duration) * 100}%` : '0%' 
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
