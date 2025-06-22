@@ -39,8 +39,16 @@ export class VideoSegmenter {
     try {
       console.log('Starting video segmentation for:', file.name);
       
+      // Clean up any existing files first
+      try {
+        await this.ffmpeg.deleteFile('input.mp4');
+      } catch (e) {
+        // File doesn't exist, that's fine
+      }
+      
       // Write input file to FFmpeg filesystem
-      await this.ffmpeg.writeFile('input.mp4', await fetchFile(file));
+      const fileData = await fetchFile(file);
+      await this.ffmpeg.writeFile('input.mp4', fileData);
 
       // Extract metadata first
       const metadata = await this.extractMetadata();
@@ -50,6 +58,18 @@ export class VideoSegmenter {
       this.ffmpeg.on('progress', ({ progress }) => {
         onProgress?.(Math.round(progress * 100));
       });
+
+      // Clean up any existing output files
+      try {
+        const files = await this.ffmpeg.listDir('/');
+        for (const file of files) {
+          if (file.name.includes('segment_') || file.name === 'playlist.m3u8') {
+            await this.ffmpeg.deleteFile(file.name);
+          }
+        }
+      } catch (e) {
+        // Files don't exist, that's fine
+      }
 
       // Segment video into 5-second TS files
       await this.ffmpeg.exec([
@@ -88,7 +108,19 @@ export class VideoSegmenter {
 
     } catch (error) {
       console.error('Video segmentation failed:', error);
-      throw new Error('Failed to process video file');
+      
+      // Clean up on error
+      try {
+        await this.ffmpeg.deleteFile('input.mp4');
+      } catch (e) {
+        // Ignore cleanup errors
+      }
+      
+      if (error instanceof Error) {
+        throw new Error(`Video processing failed: ${error.message}`);
+      } else {
+        throw new Error('Failed to process video file');
+      }
     } finally {
       // Clean up FFmpeg filesystem
       await this.cleanup();

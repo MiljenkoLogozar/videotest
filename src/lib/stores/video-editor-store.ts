@@ -47,14 +47,14 @@ export const useVideoEditorStore = create<VideoEditorStore>()(
             ...Array.from({ length: 4 }, (_, i) => ({
               id: generateId(),
               projectId: '',
-              type: TrackType.VIDEO,
+              type: 'video' as TrackType,
               index: i,
               items: [],
             })),
             ...Array.from({ length: 8 }, (_, i) => ({
               id: generateId(),
               projectId: '',
-              type: TrackType.AUDIO,
+              type: 'audio' as TrackType,
               index: i + 4,
               items: [],
             })),
