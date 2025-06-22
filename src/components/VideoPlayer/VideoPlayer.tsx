@@ -137,6 +137,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         };
 
         const handleTimeUpdate = () => {
+          // Update time during normal playback or when user is manually seeking
           if (!video.seeking) {
             onTimeUpdate(video.currentTime);
           }
@@ -218,11 +219,13 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     if (!video || !isVideoReady) return;
 
     if (isPlaying && video.paused) {
+      console.log(`${playerType} player: Resuming playback from ${video.currentTime}s`);
       video.play().catch(console.error);
     } else if (!isPlaying && !video.paused) {
+      console.log(`${playerType} player: Pausing at ${video.currentTime}s`);
       video.pause();
     }
-  }, [isPlaying, isVideoReady]);
+  }, [isPlaying, isVideoReady, playerType]);
 
   // Sync current time (seeking)
   useEffect(() => {
@@ -230,10 +233,13 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     if (!video || !isVideoReady) return;
 
     const timeDiff = Math.abs(video.currentTime - currentTime);
-    if (timeDiff > 0.5) { // Only seek if difference is significant
+    // Only seek if difference is significant AND video is not currently playing
+    // This prevents seeking while video is naturally playing and updating time
+    if (timeDiff > 0.5 && (!video.seeking && (video.paused || timeDiff > 2))) {
+      console.log(`${playerType} player: Seeking from ${video.currentTime} to ${currentTime}`);
       video.currentTime = currentTime;
     }
-  }, [currentTime, isVideoReady]);
+  }, [currentTime, isVideoReady, playerType]);
 
   // Handle volume changes
   useEffect(() => {
