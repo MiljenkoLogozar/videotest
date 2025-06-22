@@ -244,7 +244,7 @@ export default function VideoEditorPage() {
         </div>
       )}
 
-      <div className="flex h-[calc(100vh-80px)]">
+      <div className="flex h-[calc(100vh-80px)] min-h-[600px]">
         {/* Left Sidebar - Video Files */}
         <div className="w-80 bg-gray-800 border-r border-gray-700 flex flex-col">
           <div className="p-4 border-b border-gray-700">
@@ -323,10 +323,10 @@ export default function VideoEditorPage() {
         {/* Main Content */}
         <div className="flex-1 flex flex-col bg-black">
           {/* Dual Video Players Panel */}
-          <div className="flex w-full">
+          <div className="flex w-full" style={{ height: 'min(400px, 40vh)' }}>
             {/* Source Player Panel */}
             <div className="w-1/2 flex flex-col border-r border-gray-700">
-              <div className="flex-1 bg-black relative">
+              <div className="flex-1 bg-black relative min-h-0">
                 {/* Video Player */}
                 <VideoPlayerAJ
                   asset={selectedVideo}
@@ -451,7 +451,7 @@ export default function VideoEditorPage() {
 
             {/* Program Player Panel */}
             <div className="w-1/2 flex flex-col">
-              <div className="flex-1 bg-black relative">
+              <div className="flex-1 bg-black relative min-h-0">
                 {/* Program Video Player - Currently shows timeline output */}
                 <VideoPlayerAJ
                   asset={null} // TODO: Will show timeline composition in Phase 3
