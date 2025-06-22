@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Settings, Upload as UploadIcon } from 'lucide-react';
 import FileUpload from '@/components/FileUpload/FileUpload';
 import { useVideoEditorStore, useCurrentProject, useTimeline, useTimelineActions, useProjectActions } from '@/lib/stores/video-editor-store';
+import { localVideoStorage, generateAssetId } from '@/lib/storage/local-storage';
 import type { VideoSegments } from '@/types';
 
 export default function VideoEditorPage() {
@@ -30,6 +31,14 @@ export default function VideoEditorPage() {
     }
   }, [hasMounted, currentProject, createProject]);
 
+  // Cleanup local storage on unmount
+  useEffect(() => {
+    return () => {
+      // Clean up blob URLs when component unmounts
+      localVideoStorage.cleanup();
+    };
+  }, []);
+
   const handleFileProcessed = (segments: VideoSegments, file: File) => {
     console.log('Video processed:', {
       segments: segments.segments.length,
@@ -38,10 +47,30 @@ export default function VideoEditorPage() {
       waveform: segments.waveform.length
     });
     
+    // Store the processed video locally
+    const assetId = generateAssetId();
+    const localAsset = localVideoStorage.storeVideoAsset(
+      assetId,
+      file.name,
+      file.size,
+      segments
+    );
+    
+    console.log('Video stored locally:', {
+      id: localAsset.id,
+      fileName: localAsset.fileName,
+      segmentUrls: localAsset.segmentUrls.length,
+      thumbnailUrls: localAsset.thumbnailUrls.length
+    });
+    
+    // Show storage stats
+    const stats = localVideoStorage.getStats();
+    console.log('Local storage stats:', stats);
+    
     setShowUpload(false);
     setError(null);
     
-    // TODO: Add the video to the timeline
+    // TODO: Add the video to the timeline with local asset
     // This will be implemented when we create the timeline component
   };
 
@@ -345,8 +374,12 @@ export default function VideoEditorPage() {
                   <span className="text-sm">Dual Player Layout ✓</span>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                  <span className="text-sm">S3 Storage (Next)</span>
+                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  <span className="text-sm">Local Processing ✓</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
+                  <span className="text-sm">S3 Storage (Phase 2)</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
