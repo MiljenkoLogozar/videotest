@@ -139,7 +139,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         };
 
         const handleTimeUpdate = () => {
-          // Update time during normal playback or when user is manually seeking
+          // Always update time for timeline display, but be conservative
           if (!video.seeking) {
             onTimeUpdate(video.currentTime);
           }
@@ -215,41 +215,17 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
   }, [asset, loadVideo]);
 
-  // Sync playback state - but prefer internal state during transitions
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !isVideoReady) return;
+  // DISABLE external playback state synchronization to fix restart issue
+  // The video player will be fully autonomous for play/pause
+  // useEffect(() => {
+  //   // Commented out to prevent external state interference
+  // }, [isPlaying, isVideoReady, playerType]);
 
-    // Update internal state when external state changes
-    setInternalIsPlaying(isPlaying);
-
-    if (isPlaying && video.paused) {
-      console.log(`${playerType} player: External play command - resuming from ${video.currentTime}s`);
-      video.play().catch(console.error);
-    } else if (!isPlaying && !video.paused) {
-      console.log(`${playerType} player: External pause command - pausing at ${video.currentTime}s`);
-      video.pause();
-    }
-  }, [isPlaying, isVideoReady, playerType]);
-
-  // Only seek when explicitly requested (not during normal playback)
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !isVideoReady) return;
-
-    // Check if this is a new external seek command
-    if (lastExternalSeekTime.current !== currentTime) {
-      const timeDiff = Math.abs(video.currentTime - currentTime);
-      
-      // Only seek if there's a significant difference (more than 1 second)
-      // AND it seems like an intentional seek (not just a small drift)
-      if (timeDiff > 1 && !video.seeking) {
-        console.log(`${playerType} player: External seek command, seeking from ${video.currentTime} to ${currentTime}`);
-        video.currentTime = currentTime;
-        lastExternalSeekTime.current = currentTime;
-      }
-    }
-  }, [currentTime, isVideoReady, playerType]);
+  // DISABLE external time synchronization completely to prevent restart issues
+  // Only allow manual seeking via progress bar clicks
+  // useEffect(() => {
+  //   // Commented out to prevent external state from interfering with video playback
+  // }, [currentTime, isVideoReady, playerType]);
 
   // Handle volume changes
   useEffect(() => {
@@ -263,15 +239,18 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     const video = videoRef.current;
     if (!video || !isVideoReady) return;
 
-    if (internalIsPlaying || !video.paused) {
+    // Use the actual video element state, not external state
+    if (!video.paused) {
       console.log(`${playerType} player: Video click - pausing at ${video.currentTime}s`);
       video.pause();
       setInternalIsPlaying(false);
+      // Still notify parent for UI updates, but don't rely on parent state
       onPause();
     } else {
       console.log(`${playerType} player: Video click - playing from ${video.currentTime}s`);
       video.play().catch(console.error);
       setInternalIsPlaying(true);
+      // Still notify parent for UI updates, but don't rely on parent state
       onPlay();
     }
   };
