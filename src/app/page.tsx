@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Settings, Upload as UploadIcon } from 'lucide-react';
 import FileUpload from '@/components/FileUpload/FileUpload';
 import VideoPlayer from '@/components/VideoPlayer/VideoPlayer';
-import { useCurrentProject, useTimeline, useTimelineActions, useProjectActions } from '@/lib/stores/video-editor-store';
+import { useCurrentProject, useTimeline, useTimelineActions, useProjectActions, useVideoEditorStore } from '@/lib/stores/video-editor-store';
 import { localVideoStorage, generateAssetId } from '@/lib/storage/local-storage';
 import type { VideoSegments } from '@/types';
 import type { LocalVideoAsset } from '@/lib/storage/local-storage';
@@ -90,7 +90,17 @@ export default function VideoEditorPage() {
 
   const handleVideoSelect = (asset: LocalVideoAsset) => {
     console.log('Selected video asset:', asset);
+    console.log('Video duration:', asset.metadata.duration);
+    console.log('Current timeline duration:', timeline.duration);
+    
     setSelectedVideo(asset);
+    
+    // Update timeline duration to match the selected video's duration
+    const { updateProject } = useVideoEditorStore.getState();
+    if (currentProject) {
+      console.log('Updating project duration to:', asset.metadata.duration);
+      updateProject({ duration: asset.metadata.duration });
+    }
   };
 
   const handleVideoTimeUpdate = (time: number) => {
@@ -119,6 +129,13 @@ export default function VideoEditorPage() {
     
     // Ensure time is within bounds
     const clampedTime = Math.max(0, Math.min(newTime, selectedVideo.metadata.duration));
+    console.log('Source progress click:', {
+      percentage,
+      newTime,
+      clampedTime,
+      videoDuration: selectedVideo.metadata.duration,
+      timelineDuration: timeline.duration
+    });
     seek(clampedTime);
   };
 

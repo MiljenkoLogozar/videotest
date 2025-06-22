@@ -231,6 +231,13 @@ export const useVideoEditorStore = create<VideoEditorStore>()(
       });
     },
 
+    // Seek without automatically pausing (for scrubbing while playing)
+    setCurrentTimeOnly: (time: number) => {
+      set((state) => {
+        state.timeline.currentTime = Math.max(0, Math.min(time, state.timeline.duration));
+      });
+    },
+
     setZoom: (zoom: number) => {
       set((state) => {
         // Clamp zoom between reasonable values (10 pixels/second to 1000 pixels/second)
