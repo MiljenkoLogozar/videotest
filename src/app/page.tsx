@@ -11,6 +11,7 @@ export default function VideoEditorPage() {
   const [hasMounted, setHasMounted] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [videoCount, setVideoCount] = useState(0);
 
   const currentProject = useCurrentProject();
   const timeline = useTimeline();
@@ -21,6 +22,8 @@ export default function VideoEditorPage() {
     // Ensure we're on the client side
     if (typeof window !== 'undefined') {
       setHasMounted(true);
+      // Initialize video count with current assets
+      setVideoCount(localVideoStorage.getStats().assetsCount);
     }
   }, []);
 
@@ -70,6 +73,9 @@ export default function VideoEditorPage() {
     setShowUpload(false);
     setError(null);
     
+    // Update video count to trigger re-render of video list
+    setVideoCount(prev => prev + 1);
+    
     // TODO: Add the video to the timeline with local asset
     // This will be implemented when we create the timeline component
   };
@@ -83,6 +89,15 @@ export default function VideoEditorPage() {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const formatTimeWithFrames = (seconds: number, fps: number): string => {
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    const frames = Math.floor((seconds % 1) * fps);
+    
+    return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}:${frames.toString().padStart(2, '0')}`;
   };
 
   if (!hasMounted) {
@@ -120,6 +135,80 @@ export default function VideoEditorPage() {
       </header>
 
       <div className="flex h-[calc(100vh-80px)]">
+        {/* Left Sidebar - Video Files */}
+        <div className="w-80 bg-gray-800 border-r border-gray-700 flex flex-col">
+          <div className="p-4 border-b border-gray-700">
+            <h3 className="text-lg font-semibold text-white">Video Files</h3>
+            <p className="text-sm text-gray-400 mt-1">
+              {videoCount} files loaded
+            </p>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto p-4 space-y-3" key={videoCount}>
+            {localVideoStorage.listAssets().length === 0 ? (
+              <div className="text-center py-8">
+                <div className="w-16 h-16 mx-auto mb-3 bg-gray-700 rounded-lg flex items-center justify-center">
+                  <svg className="w-8 h-8 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <p className="text-gray-400 text-sm">No video files</p>
+                <p className="text-gray-500 text-xs mt-1">Upload videos to see them here</p>
+              </div>
+            ) : (
+              localVideoStorage.listAssets().map((asset) => (
+                <div
+                  key={asset.id}
+                  className="bg-gray-700 rounded-lg p-3 hover:bg-gray-600 transition-colors cursor-pointer"
+                  onClick={() => {
+                    console.log('Selected video asset:', asset);
+                    // TODO: Load video into player
+                  }}
+                >
+                  {/* Thumbnail */}
+                  <div className="w-full h-20 bg-gray-600 rounded mb-2 overflow-hidden">
+                    {asset.thumbnailUrls[0] ? (
+                      <img 
+                        src={asset.thumbnailUrls[0]} 
+                        alt={`${asset.fileName} thumbnail`}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Filename */}
+                  <div className="mb-2">
+                    <p className="text-white text-sm font-medium truncate" title={asset.fileName}>
+                      {asset.fileName}
+                    </p>
+                  </div>
+                  
+                  {/* Duration and Info */}
+                  <div className="flex justify-between items-center text-xs text-gray-400">
+                    <span className="font-mono">
+                      {formatTimeWithFrames(asset.metadata.duration, asset.metadata.fps)}
+                    </span>
+                    <span>
+                      {asset.segmentUrls.length} segments
+                    </span>
+                  </div>
+                  
+                  {/* Resolution */}
+                  <div className="mt-1 text-xs text-gray-500">
+                    {asset.metadata.width}×{asset.metadata.height} • {asset.metadata.fps}fps
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
         {/* Main Content */}
         <div className="flex-1 flex flex-col bg-black">
           {/* Dual Video Players Panel */}
@@ -313,7 +402,7 @@ export default function VideoEditorPage() {
         </div>
 
         {/* Right Sidebar */}
-        <div className="w-80 bg-gray-800 border-l border-gray-700">
+        <div className="w-72 bg-gray-800 border-l border-gray-700">
           <div className="p-6">
             <h3 className="text-lg font-semibold mb-4">Project Info</h3>
             
