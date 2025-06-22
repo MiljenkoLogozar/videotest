@@ -17,15 +17,18 @@ export default function VideoEditorPage() {
   const { createProject } = useProjectActions();
 
   useEffect(() => {
-    setHasMounted(true);
+    // Ensure we're on the client side
+    if (typeof window !== 'undefined') {
+      setHasMounted(true);
+    }
   }, []);
 
-  // Create a default project on mount
+  // Create a default project on mount (only after hydration)
   useEffect(() => {
-    if (!currentProject) {
+    if (hasMounted && !currentProject) {
       createProject('My Video Project');
     }
-  }, [currentProject, createProject]);
+  }, [hasMounted, currentProject, createProject]);
 
   const handleFileProcessed = (segments: VideoSegments, file: File) => {
     console.log('Video processed:', {
@@ -54,7 +57,11 @@ export default function VideoEditorPage() {
   };
 
   if (!hasMounted) {
-    return null;
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-white">Loading...</div>
+      </div>
+    );
   }
 
   return (
