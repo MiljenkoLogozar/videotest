@@ -9,7 +9,7 @@ import type { VideoSegments } from '@/types';
 
 export default function VideoEditorPage() {
   const [hasMounted, setHasMounted] = useState(false);
-  const [showUpload, setShowUpload] = useState(true);
+  const [showUpload, setShowUpload] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const currentProject = useCurrentProject();

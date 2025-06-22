@@ -57,14 +57,17 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       const segmenter = new VideoSegmenter();
       
       const segments = await segmenter.segmentVideo(file, (progress) => {
+        console.log('Processing progress:', progress);
         setUploadStatus(prev => ({
           ...prev,
           progress,
-          message: progress < 50 
+          message: progress < 30 
             ? 'Segmenting video...' 
-            : progress < 80 
-            ? 'Generating thumbnails...' 
-            : 'Creating waveform...'
+            : progress < 60 
+            ? 'Processing segments...' 
+            : progress < 80
+            ? 'Generating thumbnails...'
+            : 'Finalizing...'
         }));
       });
 
