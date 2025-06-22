@@ -53,6 +53,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const [duration, setDuration] = useState(0);
   const [isVideoReady, setIsVideoReady] = useState(false);
   const [currentPlaylistUrl, setCurrentPlaylistUrl] = useState<string | null>(null);
+  const [internalIsPlaying, setInternalIsPlaying] = useState(false);
+  const lastExternalSeekTime = useRef<number>(-1);
 
   // Load video asset into player
   const loadVideo = useCallback(async (videoAsset: LocalVideoAsset) => {
@@ -191,7 +193,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       setError(err instanceof Error ? err.message : 'Failed to load video');
       setIsLoading(false);
     }
-  }, [playerType, onTimeUpdate, currentPlaylistUrl]);
+  }, [playerType, onTimeUpdate]);
 
   // Load video when asset changes
   useEffect(() => {
@@ -211,33 +213,41 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         setCurrentPlaylistUrl(null);
       }
     }
-  }, [asset, loadVideo, currentPlaylistUrl]);
+  }, [asset, loadVideo]);
 
-  // Sync playback state
+  // Sync playback state - but prefer internal state during transitions
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !isVideoReady) return;
 
+    // Update internal state when external state changes
+    setInternalIsPlaying(isPlaying);
+
     if (isPlaying && video.paused) {
-      console.log(`${playerType} player: Resuming playback from ${video.currentTime}s`);
+      console.log(`${playerType} player: External play command - resuming from ${video.currentTime}s`);
       video.play().catch(console.error);
     } else if (!isPlaying && !video.paused) {
-      console.log(`${playerType} player: Pausing at ${video.currentTime}s`);
+      console.log(`${playerType} player: External pause command - pausing at ${video.currentTime}s`);
       video.pause();
     }
   }, [isPlaying, isVideoReady, playerType]);
 
-  // Sync current time (seeking)
+  // Only seek when explicitly requested (not during normal playback)
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !isVideoReady) return;
 
-    const timeDiff = Math.abs(video.currentTime - currentTime);
-    // Only seek if difference is significant AND video is not currently playing
-    // This prevents seeking while video is naturally playing and updating time
-    if (timeDiff > 0.5 && (!video.seeking && (video.paused || timeDiff > 2))) {
-      console.log(`${playerType} player: Seeking from ${video.currentTime} to ${currentTime}`);
-      video.currentTime = currentTime;
+    // Check if this is a new external seek command
+    if (lastExternalSeekTime.current !== currentTime) {
+      const timeDiff = Math.abs(video.currentTime - currentTime);
+      
+      // Only seek if there's a significant difference (more than 1 second)
+      // AND it seems like an intentional seek (not just a small drift)
+      if (timeDiff > 1 && !video.seeking) {
+        console.log(`${playerType} player: External seek command, seeking from ${video.currentTime} to ${currentTime}`);
+        video.currentTime = currentTime;
+        lastExternalSeekTime.current = currentTime;
+      }
     }
   }, [currentTime, isVideoReady, playerType]);
 
@@ -250,9 +260,18 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   }, [volume, isMuted]);
 
   const handleVideoClick = () => {
-    if (isPlaying) {
+    const video = videoRef.current;
+    if (!video || !isVideoReady) return;
+
+    if (internalIsPlaying || !video.paused) {
+      console.log(`${playerType} player: Video click - pausing at ${video.currentTime}s`);
+      video.pause();
+      setInternalIsPlaying(false);
       onPause();
     } else {
+      console.log(`${playerType} player: Video click - playing from ${video.currentTime}s`);
+      video.play().catch(console.error);
+      setInternalIsPlaying(true);
       onPlay();
     }
   };
