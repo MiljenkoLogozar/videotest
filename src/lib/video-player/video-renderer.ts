@@ -32,40 +32,20 @@ export class VideoRenderer {
    * Render frame based on tick - called from requestAnimationFrame
    */
   async render(tick: FrameTick): Promise<void> {
-    let duration = 0;
-    if (this.state) {
-      duration = this.state.duration;
-    }
-
-    // Skip if no change or no frame store
-    if (!tick || 
-        (tick.frame === this._lastRenderedFrame && 
-         this._timelineDuration === duration) || 
-        !this.frameStore) {
-      return;
-    }
-
-    this._activeFrame = null;
-
-    if (this.state) {
-      // Timeline mode - render composite
-      this._timelineDuration = this.state.duration;
-      // TODO: Implement timeline rendering when needed
-    } else if (this.src && this.asset) {
-      // Source player mode - render single video
-      await this.renderSourceFrame(tick.frame);
-    }
-
-    if (this._activeFrame) {
-      this._lastRenderedFrame = tick.frame;
-      this.ctx.drawImage(
-        this._activeFrame, 
-        0, 0, 
-        this.canvas.width, 
-        this.canvas.height
+    // For now, just clear the canvas - video rendering will be handled by HTML video element
+    // until we implement proper frame store system
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    
+    // Draw a simple indicator to show the renderer is working
+    if (this.asset) {
+      this.ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+      this.ctx.font = '16px Arial';
+      this.ctx.textAlign = 'center';
+      this.ctx.fillText(
+        `Frame: ${tick.frame} | Time: ${tick.time.toFixed(2)}s`,
+        this.canvas.width / 2,
+        this.canvas.height / 2
       );
-    } else {
-      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     }
   }
 

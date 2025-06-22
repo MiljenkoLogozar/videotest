@@ -19,6 +19,7 @@ export class VideoPlayerController {
   private frameTicker: FrameTicker | null = null;
   private renderer: VideoRenderer | null = null;
   private canvas: HTMLCanvasElement | null = null;
+  private videoElement: HTMLVideoElement | null = null;
   private animationFrameId: number | null = null;
   private asset: LocalVideoAsset | null = null;
   
@@ -30,8 +31,9 @@ export class VideoPlayerController {
     this.render = this.render.bind(this);
   }
 
-  initialize(canvas: HTMLCanvasElement): void {
+  initialize(canvas: HTMLCanvasElement, videoElement?: HTMLVideoElement): void {
     this.canvas = canvas;
+    this.videoElement = videoElement || null;
     this.renderer = new VideoRenderer(canvas);
     this.startRenderLoop();
   }
@@ -73,31 +75,38 @@ export class VideoPlayerController {
   }
 
   play(): void {
-    if (this.frameTicker) {
+    if (this.frameTicker && this.videoElement) {
       this.frameTicker.start();
+      this.videoElement.play().catch(console.error);
       this.notifyStateChange();
     }
   }
 
   pause(): void {
-    if (this.frameTicker) {
+    if (this.frameTicker && this.videoElement) {
       this.frameTicker.stop();
+      this.videoElement.pause();
       this.notifyStateChange();
     }
   }
 
   seekToFrame(frameNumber: number): void {
-    if (this.frameTicker) {
+    if (this.frameTicker && this.videoElement && this.asset) {
+      const time = frameNumber / this.asset.metadata.fps;
       this.frameTicker.currentFrame = frameNumber;
+      this.videoElement.currentTime = time;
       this.notifyStateChange();
       this.notifyTimeUpdate();
     }
   }
 
   seekToTime(time: number): void {
-    if (this.frameTicker && this.asset) {
+    if (this.frameTicker && this.videoElement && this.asset) {
       const frame = Math.floor(time * this.asset.metadata.fps);
-      this.seekToFrame(frame);
+      this.frameTicker.currentFrame = frame;
+      this.videoElement.currentTime = time;
+      this.notifyStateChange();
+      this.notifyTimeUpdate();
     }
   }
 

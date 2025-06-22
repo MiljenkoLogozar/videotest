@@ -33,7 +33,7 @@ export const VideoPlayerAJ: React.FC<VideoPlayerAJProps> = ({
   const [currentFrame, setCurrentFrame] = useState(0);
   const lastSeekTime = useRef<number>(-1);
 
-  // Initialize controller
+  // Initialize controller (temporarily disabled canvas rendering)
   useEffect(() => {
     if (canvasRef.current && !controllerRef.current) {
       const controller = new VideoPlayerController();
@@ -51,7 +51,7 @@ export const VideoPlayerAJ: React.FC<VideoPlayerAJProps> = ({
         onTimeUpdate(time);
       };
       
-      // Initialize with canvas
+      // Initialize with canvas only (video element managed separately for now)
       controller.initialize(canvasRef.current);
       controllerRef.current = controller;
       
@@ -88,29 +88,34 @@ export const VideoPlayerAJ: React.FC<VideoPlayerAJProps> = ({
     }
   }, [asset, playerType]);
 
-  // Handle external seeking
+  // Handle external seeking  
+  const videoRef = useRef<HTMLVideoElement>(null);
   useEffect(() => {
-    const controller = controllerRef.current;
-    if (!controller || !isVideoReady || seekToTime === undefined || seekToTime === lastSeekTime.current) {
+    const video = videoRef.current;
+    if (!video || !isVideoReady || seekToTime === undefined || seekToTime === lastSeekTime.current) {
       return;
     }
     
     console.log(`${playerType} player: External seek to ${seekToTime}s`);
     lastSeekTime.current = seekToTime;
-    controller.seekToTime(seekToTime);
-  }, [seekToTime, isVideoReady, playerType]);
+    video.currentTime = seekToTime;
+    
+    const fps = asset?.metadata.fps || 30;
+    setCurrentFrame(Math.floor(seekToTime * fps));
+    setInternalCurrentTime(seekToTime);
+  }, [seekToTime, isVideoReady, playerType, asset]);
 
-  // Handle canvas click for play/pause
-  const handleCanvasClick = useCallback(() => {
-    const controller = controllerRef.current;
-    if (!controller || !isVideoReady) return;
+  // Handle video click for play/pause  
+  const handleVideoClick = useCallback(() => {
+    const video = videoRef.current;
+    if (!video || !isVideoReady) return;
 
     if (internalIsPlaying) {
       console.log(`${playerType} player: Pausing at frame ${currentFrame} (${internalCurrentTime.toFixed(3)}s)`);
-      controller.pause();
+      video.pause();
     } else {
       console.log(`${playerType} player: Playing from frame ${currentFrame} (${internalCurrentTime.toFixed(3)}s)`);
-      controller.play();
+      video.play().catch(console.error);
     }
   }, [internalIsPlaying, isVideoReady, playerType, currentFrame, internalCurrentTime]);
 
@@ -155,12 +160,54 @@ export const VideoPlayerAJ: React.FC<VideoPlayerAJProps> = ({
 
   return (
     <div className={`relative w-full h-full bg-black ${className}`}>
-      {/* Canvas for frame-accurate rendering */}
+      {/* HTML Video Element for actual video display */}
+      {asset && (
+        <video
+          ref={videoRef}
+          src={asset.fullVideoUrl}
+          className="w-full h-full object-contain"
+          onClick={handleVideoClick}
+          onTimeUpdate={(e) => {
+            const video = e.currentTarget;
+            if (!video.seeking && isVideoReady) {
+              const currentTime = video.currentTime;
+              setInternalCurrentTime(currentTime);
+              
+              const fps = asset.metadata.fps || 30;
+              setCurrentFrame(Math.floor(currentTime * fps));
+              
+              onTimeUpdate(currentTime);
+            }
+          }}
+          onPlay={() => {
+            setInternalIsPlaying(true);
+            onPlayStateChange(true);
+          }}
+          onPause={() => {
+            setInternalIsPlaying(false);
+            onPlayStateChange(false);
+          }}
+          onLoadedMetadata={(e) => {
+            console.log(`${playerType} player: Video metadata loaded`);
+            setIsVideoReady(true);
+            setIsLoading(false);
+          }}
+          onError={(e) => {
+            console.error(`${playerType} player: Video error`, e);
+            setError('Failed to load video');
+            setIsLoading(false);
+          }}
+          controls={false}
+          playsInline
+          preload="metadata"
+        />
+      )}
+      
+      {/* Canvas overlay for frame-accurate indicators */}
       <canvas
         ref={canvasRef}
-        className="w-full h-full object-contain cursor-pointer"
-        onClick={handleCanvasClick}
-        style={{ display: 'block' }}
+        className="absolute inset-0 w-full h-full pointer-events-none"
+        style={{ display: process.env.NODE_ENV === 'development' ? 'block' : 'none' }}
       />
 
       {/* Loading State */}
