@@ -3,18 +3,22 @@
 import React, { useEffect, useState } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Settings, Upload as UploadIcon } from 'lucide-react';
 import FileUpload from '@/components/FileUpload/FileUpload';
-import ClientWrapper from '@/components/ClientWrapper';
 import { useVideoEditorStore, useCurrentProject, useTimeline, useTimelineActions, useProjectActions } from '@/lib/stores/video-editor-store';
 import type { VideoSegments } from '@/types';
 
 export default function VideoEditorPage() {
+  const [hasMounted, setHasMounted] = useState(false);
+  const [showUpload, setShowUpload] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const currentProject = useCurrentProject();
   const timeline = useTimeline();
   const { play, pause, seek, setCurrentTime } = useTimelineActions();
   const { createProject } = useProjectActions();
-  
-  const [showUpload, setShowUpload] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   // Create a default project on mount
   useEffect(() => {
@@ -49,8 +53,11 @@ export default function VideoEditorPage() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  if (!hasMounted) {
+    return null;
+  }
+
   return (
-    <ClientWrapper>
       <div className="min-h-screen bg-black text-white">
         {/* Header */}
         <header className="bg-gray-800 border-b border-gray-700 px-6 py-4">
@@ -347,6 +354,5 @@ export default function VideoEditorPage() {
           </div>
         </div>
       </div>
-    </ClientWrapper>
   );
 }
