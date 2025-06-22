@@ -3,6 +3,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Play } from 'lucide-react';
 import { VideoPlayerController } from '@/lib/video-player/video-player-controller';
+import { useTimeline } from '@/lib/stores/video-editor-store';
 import type { LocalVideoAsset } from '@/lib/storage/local-storage';
 
 interface VideoPlayerAJProps {
@@ -32,6 +33,9 @@ export const VideoPlayerAJ: React.FC<VideoPlayerAJProps> = ({
   const [internalCurrentTime, setInternalCurrentTime] = useState(0);
   const [currentFrame, setCurrentFrame] = useState(0);
   const lastSeekTime = useRef<number>(-1);
+  
+  // Get timeline state to respond to external play/pause
+  const timeline = useTimeline();
 
   // Initialize controller (temporarily disabled canvas rendering)
   useEffect(() => {
@@ -108,16 +112,38 @@ export const VideoPlayerAJ: React.FC<VideoPlayerAJProps> = ({
   // Handle video click for play/pause  
   const handleVideoClick = useCallback(() => {
     const video = videoRef.current;
-    if (!video || !isVideoReady) return;
+    if (!video || !isVideoReady) {
+      console.log(`${playerType} player: Video click ignored - not ready`, { video: !!video, isVideoReady });
+      return;
+    }
 
     if (internalIsPlaying) {
       console.log(`${playerType} player: Pausing at frame ${currentFrame} (${internalCurrentTime.toFixed(3)}s)`);
       video.pause();
     } else {
       console.log(`${playerType} player: Playing from frame ${currentFrame} (${internalCurrentTime.toFixed(3)}s)`);
-      video.play().catch(console.error);
+      video.play().catch((error) => {
+        console.error(`${playerType} player: Play failed:`, error);
+      });
     }
   }, [internalIsPlaying, isVideoReady, playerType, currentFrame, internalCurrentTime]);
+
+  // Listen to timeline play/pause changes
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !isVideoReady) return;
+
+    // Sync with timeline state changes (from external buttons)
+    if (timeline.isPlaying && !internalIsPlaying) {
+      console.log(`${playerType} player: Timeline play command - starting video`);
+      video.play().catch((error) => {
+        console.error(`${playerType} player: Timeline play failed:`, error);
+      });
+    } else if (!timeline.isPlaying && internalIsPlaying) {
+      console.log(`${playerType} player: Timeline pause command - pausing video`);
+      video.pause();
+    }
+  }, [timeline.isPlaying, internalIsPlaying, isVideoReady, playerType]);
 
   // Setup canvas size
   useEffect(() => {
@@ -179,18 +205,34 @@ export const VideoPlayerAJ: React.FC<VideoPlayerAJProps> = ({
               onTimeUpdate(currentTime);
             }
           }}
-          onPlay={() => {
+          onPlay={(e) => {
+            console.log(`${playerType} player: Video element play event`);
             setInternalIsPlaying(true);
             onPlayStateChange(true);
           }}
-          onPause={() => {
+          onPause={(e) => {
+            console.log(`${playerType} player: Video element pause event`);
             setInternalIsPlaying(false);
             onPlayStateChange(false);
           }}
           onLoadedMetadata={(e) => {
-            console.log(`${playerType} player: Video metadata loaded`);
+            const video = e.currentTarget;
+            console.log(`${playerType} player: Video metadata loaded`, {
+              duration: video.duration,
+              readyState: video.readyState,
+              networkState: video.networkState
+            });
             setIsVideoReady(true);
             setIsLoading(false);
+          }}
+          onCanPlay={(e) => {
+            console.log(`${playerType} player: Video can play`);
+          }}
+          onCanPlayThrough={(e) => {
+            console.log(`${playerType} player: Video can play through`);
+          }}
+          onLoadStart={(e) => {
+            console.log(`${playerType} player: Video load start`);
           }}
           onError={(e) => {
             console.error(`${playerType} player: Video error`, e);
