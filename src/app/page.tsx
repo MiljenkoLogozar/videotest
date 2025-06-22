@@ -15,6 +15,7 @@ export default function VideoEditorPage() {
   const [error, setError] = useState<string | null>(null);
   const [videoCount, setVideoCount] = useState(0);
   const [selectedVideo, setSelectedVideo] = useState<LocalVideoAsset | null>(null);
+  const [actualVideoTime, setActualVideoTime] = useState(0);
 
   const currentProject = useCurrentProject();
   const timeline = useTimeline();
@@ -94,6 +95,7 @@ export default function VideoEditorPage() {
     console.log('Current timeline duration:', timeline.duration);
     
     setSelectedVideo(asset);
+    setActualVideoTime(0); // Reset video time when selecting new video
     
     // Update timeline duration to match the selected video's duration
     const { updateProject } = useVideoEditorStore.getState();
@@ -104,7 +106,9 @@ export default function VideoEditorPage() {
   };
 
   const handleVideoTimeUpdate = (time: number) => {
+    // Update both timeline state and our actual video time for display
     setCurrentTime(time);
+    setActualVideoTime(time);
   };
 
   const handleVideoPlay = () => {
@@ -388,15 +392,15 @@ export default function VideoEditorPage() {
                   <div className="flex items-center space-x-2 text-xs text-gray-400">
                     <span className="font-mono">
                       {selectedVideo 
-                        ? formatTimeWithFrames(timeline.currentTime, selectedVideo.metadata.fps)
-                        : formatTime(timeline.currentTime)
+                        ? formatTimeWithFrames(actualVideoTime, selectedVideo.metadata.fps)
+                        : formatTime(actualVideoTime)
                       }
                     </span>
                     <span>/</span>
                     <span className="font-mono">
                       {selectedVideo 
                         ? formatTimeWithFrames(selectedVideo.metadata.duration, selectedVideo.metadata.fps)
-                        : formatTime(timeline.duration)
+                        : formatTime(selectedVideo ? selectedVideo.metadata.duration : timeline.duration)
                       }
                     </span>
                     {selectedVideo && (
@@ -416,7 +420,7 @@ export default function VideoEditorPage() {
                       className="h-full bg-orange-500 rounded-full transition-all duration-100"
                       style={{ 
                         width: selectedVideo && selectedVideo.metadata.duration > 0
-                          ? `${(timeline.currentTime / selectedVideo.metadata.duration) * 100}%` 
+                          ? `${(actualVideoTime / selectedVideo.metadata.duration) * 100}%` 
                           : '0%' 
                       }}
                     />
@@ -425,7 +429,7 @@ export default function VideoEditorPage() {
                       className="absolute top-0 w-4 h-2 bg-orange-300 rounded-full transform -translate-x-1/2 cursor-grab active:cursor-grabbing hover:w-5 hover:h-3 transition-all"
                       style={{ 
                         left: selectedVideo && selectedVideo.metadata.duration > 0
-                          ? `${(timeline.currentTime / selectedVideo.metadata.duration) * 100}%` 
+                          ? `${(actualVideoTime / selectedVideo.metadata.duration) * 100}%` 
                           : '0%' 
                       }}
                     />
