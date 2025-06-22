@@ -59,8 +59,8 @@ export default function VideoEditorPage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-        {/* Header */}
-        <header className="bg-gray-800 border-b border-gray-700 px-6 py-4">
+      {/* Header */}
+      <header className="bg-gray-800 border-b border-gray-700 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <h1 className="text-xl font-bold">Video Editor</h1>
@@ -353,6 +353,7 @@ export default function VideoEditorPage() {
             </div>
           </div>
         </div>
+      </div>
     </div>
   );
 }
