@@ -76,12 +76,14 @@ export default class VideoSegmenter {
       const segmentationPromise = this.ffmpeg.exec([
         '-i', 'input.mp4',
         '-c', 'copy', // Copy streams without re-encoding
-        '-f', 'hls',
-        '-hls_time', '5', // 5-second segments
-        '-hls_list_size', '0', // Keep all segments
-        '-hls_segment_filename', 'segment_%03d.ts',
+        '-f', 'segment',
+        '-segment_time', '5', // 5-second segments
+        '-segment_format', 'mp4',
+        '-reset_timestamps', '1',
+        '-segment_list', 'playlist.m3u8',
+        '-segment_list_type', 'm3u8',
         '-y', // Overwrite existing files
-        'playlist.m3u8'
+        'segment_%03d.mp4'
       ]);
 
       // Add timeout to prevent hanging
@@ -254,11 +256,11 @@ export default class VideoSegmenter {
 
     try {
       while (true) {
-        const segmentName = `segment_${segmentIndex.toString().padStart(3, '0')}.ts`;
+        const segmentName = `segment_${segmentIndex.toString().padStart(3, '0')}.mp4`;
         
         try {
           const segmentData = await this.ffmpeg.readFile(segmentName);
-          segments.push(new Blob([segmentData], { type: 'video/mp2t' }));
+          segments.push(new Blob([segmentData], { type: 'video/mp4' }));
           segmentIndex++;
         } catch (error) {
           // No more segments
@@ -289,7 +291,7 @@ export default class VideoSegmenter {
       // Clean up segments and thumbnails
       for (let i = 0; i < 100; i++) { // Reasonable limit
         try {
-          await this.ffmpeg.deleteFile(`segment_${i.toString().padStart(3, '0')}.ts`);
+          await this.ffmpeg.deleteFile(`segment_${i.toString().padStart(3, '0')}.mp4`);
         } catch (e) {
           // No more segments
         }
